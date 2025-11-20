@@ -3,79 +3,44 @@
 import { useEffect, useMemo, useState } from "react";
 
 type FightRecord = {
-  suit: string;
+  card: string;
   animal: string;
   fruit: string;
-  won: boolean;
+  result: boolean;
 };
 
-const SUITS = ["Diamonds", "Hearts", "Spades", "Clubs", "Joker"];
+const CARDS = ["Diamonds", "Hearts", "Spades", "Clubs", "Joker"];
 const ANIMALS = ["Lion", "Fox", "Parrot", "Seal", "Snake"];
 const FRUITS = ["Apple", "Bananas", "Mango", "Watermelon", "Papaya"];
 
-function buildModel(records: FightRecord[]) {
-  const model = {
-    total: records.length,
-    wins: 0,
-    losses: 0,
-    winSuit: {} as Record<string, number>,
-    loseSuit: {} as Record<string, number>,
-    winAnimal: {} as Record<string, number>,
-    loseAnimal: {} as Record<string, number>,
-    winFruit: {} as Record<string, number>,
-    loseFruit: {} as Record<string, number>,
-  };
-
-  for (const r of records) {
-    const targetWin = r.won;
-    if (targetWin) model.wins++;
-    else model.losses++;
-
-    const suitMap = targetWin ? model.winSuit : model.loseSuit;
-    const animalMap = targetWin ? model.winAnimal : model.loseAnimal;
-    const fruitMap = targetWin ? model.winFruit : model.loseFruit;
-
-    suitMap[r.suit] = (suitMap[r.suit] || 0) + 1;
-    animalMap[r.animal] = (animalMap[r.animal] || 0) + 1;
-    fruitMap[r.fruit] = (fruitMap[r.fruit] || 0) + 1;
-  }
-
-  return model;
+function calcFieldProbability(
+  records: FightRecord[],
+  field: "card" | "animal" | "fruit",
+  value: string
+) {
+  const filtered = records.filter((r) => r[field] === value);
+  const total = filtered.length;
+  const wins = filtered.filter((r) => r.result).length;
+  const prob = total > 0 ? wins / total : 0; // 0 if we have no data
+  return { wins, total, prob };
 }
 
-// Compute probabilityToBeatBoss(suit, animal, fruit)
-function probabilityToBeatBoss(
-  model: ReturnType<typeof buildModel>,
-  suit: string,
+function calculateProbabilities(
+  records: FightRecord[],
+  card: string,
   animal: string,
   fruit: string
-): number {
-  const { total, wins, losses } = model;
+) {
+  const suitStats = calcFieldProbability(records, "card", card);
+  const animalStats = calcFieldProbability(records, "animal", animal);
+  const fruitStats = calcFieldProbability(records, "fruit", fruit);
 
-  if (total === 0) return 0.5;
+  const overallProb = (suitStats.prob + animalStats.prob + fruitStats.prob) / 3;
 
-  const pWin = wins / total;
-  const pLose = losses / total;
-
-  const suitWin = (model.winSuit[suit] || 0) / (wins * SUITS.length);
-  const suitLose = (model.loseSuit[suit] || 0) / (losses * SUITS.length);
-
-  const animalWin = (model.winAnimal[animal] || 0) / (wins * ANIMALS.length);
-  const animalLose =
-    (model.loseAnimal[animal] || 0) / (losses * ANIMALS.length);
-
-  const fruitWin = (model.winFruit[fruit] || 0) / (wins * FRUITS.length);
-  const fruitLose = (model.loseFruit[fruit] || 0) / (losses * FRUITS.length);
-
-  const scoreWin = pWin * suitWin * animalWin * fruitWin;
-  const scoreLose = pLose * suitLose * animalLose * fruitLose;
-
-  if (scoreWin + scoreLose === 0) return 0.5;
-
-  return scoreWin / (scoreWin + scoreLose);
+  return { suitStats, animalStats, fruitStats, overallProb };
 }
 
-export default function BossPage() {
+export default function BossProbabilityPage() {
   const [records, setRecords] = useState<FightRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -95,18 +60,18 @@ export default function BossPage() {
         const parsed: FightRecord[] = lines
           .filter((line) => line.trim().length > 0)
           .map((line) => {
-            const [suit, animal, fruit, won] = line.split(",");
+            const [card, animal, fruit, won] = line.split(",");
             return {
-              suit: suit.trim(),
+              card: card.trim(),
               animal: animal.trim(),
               fruit: fruit.trim(),
-              won: won.trim().toLowerCase() === "true",
+              result: won.trim().toLowerCase() === "true",
             };
           });
 
         setRecords(parsed);
-      } catch (e) {
-        console.error("Error loading CSV", e);
+      } catch (err) {
+        console.error("Error loading CSV:", err);
       } finally {
         setLoading(false);
       }
@@ -115,20 +80,21 @@ export default function BossPage() {
     loadCSV();
   }, []);
 
-  const model = useMemo(
-    () => (records.length ? buildModel(records) : null),
-    [records]
-  );
+  // Recalculate probabilities whenever records or selection changes
+  const stats = useMemo(() => {
+    if (!records.length) return null;
+    return calculateProbabilities(records, suit, animal, fruit);
+  }, [records, suit, animal, fruit]);
 
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center text-gray-700">
-        Loading fight data...
+        Loading boss data...
       </main>
     );
   }
 
-  if (!model) {
+  if (!stats) {
     return (
       <main className="min-h-screen flex items-center justify-center text-red-600">
         No data found in boss-data.csv
@@ -136,17 +102,18 @@ export default function BossPage() {
     );
   }
 
-  const probability = probabilityToBeatBoss(model, suit, animal, fruit);
-  const percent = (probability * 100).toFixed(2);
+  const { overallProb } = stats;
+
+  const overallPercent = (overallProb * 100).toFixed(1); 
 
   return (
     <main className="min-h-screen bg-slate-100 flex items-center justify-center">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow">
+      <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow">
         <p className="mb-4 text-xl font-semibold text-gray-900">
           Boss Win Probability
         </p>
 
-        <div className="space-y-3">
+        <div className="grid gap-4 md:grid-cols-3 mb-6">
           <label className="block text-sm font-medium text-gray-700">
             Suit
             <select
@@ -154,7 +121,7 @@ export default function BossPage() {
               value={suit}
               onChange={(e) => setSuit(e.target.value)}
             >
-              {SUITS.map((s) => (
+              {CARDS.map((s) => (
                 <option key={s}>{s}</option>
               ))}
             </select>
@@ -189,9 +156,11 @@ export default function BossPage() {
 
         <div className="mt-6 rounded-xl bg-slate-50 p-4 text-center">
           <p className="text-sm text-gray-500 mb-1">
-            probabilityToBeatBoss("{suit}", "{animal}", "{fruit}")
+            Overall probability (average of the three percentages)
           </p>
-          <p className="text-3xl font-bold text-emerald-600">{percent}%</p>
+          <p className="text-3xl font-bold text-emerald-600">
+            {overallPercent}%
+          </p>
         </div>
       </div>
     </main>
