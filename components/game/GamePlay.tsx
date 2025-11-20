@@ -50,7 +50,6 @@ function probabilityToBeatBoss(
   animal: string,
   fruit: string
 ): number {
-  const alpha = 1;
   const { total, wins, losses } = model;
 
   if (total === 0) return 0.5;
@@ -58,26 +57,15 @@ function probabilityToBeatBoss(
   const pWin = wins / total;
   const pLose = losses / total;
 
-  const suitWin =
-    ((model.winSuit[suit] || 0) + alpha) /
-    (wins + alpha * SUITS.length);
-  const suitLose =
-    ((model.loseSuit[suit] || 0) + alpha) /
-    (losses + alpha * SUITS.length);
+  const suitWin = (model.winSuit[suit] || 0) / (wins * SUITS.length);
+  const suitLose = (model.loseSuit[suit] || 0) / (losses * SUITS.length);
 
-  const animalWin =
-    ((model.winAnimal[animal] || 0) + alpha) /
-    (wins + alpha * ANIMALS.length);
+  const animalWin = (model.winAnimal[animal] || 0) / (wins * ANIMALS.length);
   const animalLose =
-    ((model.loseAnimal[animal] || 0) + alpha) /
-    (losses + alpha * ANIMALS.length);
+    (model.loseAnimal[animal] || 0) / (losses * ANIMALS.length);
 
-  const fruitWin =
-    ((model.winFruit[fruit] || 0) + alpha) /
-    (wins + alpha * FRUITS.length);
-  const fruitLose =
-    ((model.loseFruit[fruit] || 0) + alpha) /
-    (losses + alpha * FRUITS.length);
+  const fruitWin = (model.winFruit[fruit] || 0) / (wins * FRUITS.length);
+  const fruitLose = (model.loseFruit[fruit] || 0) / (losses * FRUITS.length);
 
   const scoreWin = pWin * suitWin * animalWin * fruitWin;
   const scoreLose = pLose * suitLose * animalLose * fruitLose;
@@ -203,9 +191,7 @@ export default function BossPage() {
           <p className="text-sm text-gray-500 mb-1">
             probabilityToBeatBoss("{suit}", "{animal}", "{fruit}")
           </p>
-          <p className="text-3xl font-bold text-emerald-600">
-            {percent}%
-          </p>
+          <p className="text-3xl font-bold text-emerald-600">{percent}%</p>
         </div>
       </div>
     </main>
